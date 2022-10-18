@@ -1,0 +1,226 @@
+#!/usr/bin/env bash
+
+# Where is this script executing from ?
+BASEDIR=$(dirname "$0");pushd $BASEDIR 2>&1 >> /dev/null ;BASEDIR=$(pwd);popd 2>&1 >> /dev/null
+# echo "Running from directory ${BASEDIR}"
+cd "${BASEDIR}"
+
+#
+# Set Colors
+#
+
+bold=$(tput bold)
+underline=$(tput sgr 0 1)
+reset=$(tput sgr0)
+
+red=$(tput setaf 1)
+green=$(tput setaf 76)
+white=$(tput setaf 7)
+tan=$(tput setaf 202)
+blue=$(tput setaf 25)
+
+#
+# Headers and Logging
+#
+
+underline() { printf "${underline}${bold}%s${reset}\n" "$@"
+}
+h1() { printf "\n${underline}${bold}${blue}%s${reset}\n" "$@"
+}
+h2() { printf "\n${underline}${bold}${white}%s${reset}\n" "$@"
+}
+debug() { printf "${white}%s${reset}\n" "$@"
+}
+info() { printf "${white}➜ %s${reset}\n" "$@"
+}
+success() { printf "${green}✔ %s${reset}\n" "$@"
+}
+error() { printf "${red}✖ %s${reset}\n" "$@"
+}
+warn() { printf "${tan}➜ %s${reset}\n" "$@"
+}
+bold() { printf "${bold}%s${reset}\n" "$@"
+}
+note() { printf "\n${underline}${bold}${blue}Note:${reset} ${blue}%s${reset}\n" "$@"
+}
+
+
+function usage {
+    cat << EOF
+nexus [options]
+
+Options are:
+start
+stop
+status
+help
+logs
+EOF
+
+}
+
+function status {
+    h2 "Querying the status of nexus..."
+
+    count=$(docker ps --all | grep "sonatype/nexus3" | wc -l | xargs)
+    if [[ "${count}" == "0" ]]; then
+        info "Not started"
+    else
+        container_details=$(docker ps --all | grep "sonatype/nexus3")
+        container_id=$(echo ${container_details} | cut -f1 -d' ')
+        info "Container id is ${container_id}"
+        stopped_container_count=$(docker ps --filter "status=exited" --all | grep "sonatype/nexus3" | wc -l | xargs )
+        if [[ "${stopped_container_count}" == "0" ]]; then
+            info "Running"
+        else
+            info "Stopped. Needs cleaning up"
+        fi
+    fi
+}
+
+function get_logs {
+    h2 "Querying the log from the nexus container..."
+
+    count=$(docker ps --all | grep "sonatype/nexus3" | wc -l | xargs)
+    if [[ "${count}" == "0" ]]; then
+        error "No container running. Cannot get logs"
+        exit 1
+    else
+        container_details=$(docker ps --all | grep "sonatype/nexus3")
+        container_id=$(echo ${container_details} | cut -f1 -d' ')
+
+        docker logs ${container_id}
+
+    fi
+}
+
+function stop {
+    h2 "Stopping the nexus docker image..."
+
+    nexus_container_count=$(docker container ls --all | grep "sonatype/nexus3" | wc -l | xargs )
+    if [[ "${nexus_container_count}" == "0" ]]; then
+        success "Nexus is not currently running. There is nothing to stop."
+    else
+        container_details=$(docker ps --all | grep "sonatype/nexus3")
+        container_id=$(echo ${container_details} | cut -f1 -d' ')
+
+        stopped_container_count=$(docker ps --filter "status=exited" --all | grep "sonatype/nexus3" | wc -l | xargs )
+        if [[ "${stopped_container_count}" == "0" ]]; then
+            # The container is not stopped. So we have to stop it before removing it.
+            docker container stop --time=120 ${container_id}
+            rc=$? ; if [[ "${rc}" != "0" ]]; then error "Failed to stop the nexus3 container! rc=${rc}" ; exit ; fi
+            success "Stopped the nexus container"
+        fi
+
+        # There is a nexus container present... is it still running ? 
+        # The nexus container exists. Remove it.
+        docker container rm ${container_id}
+        rc=$? ; if [[ "${rc}" != "0" ]]; then error "Failed to remove the stopped nexus3 container! rc=${rc}" ; exit ; fi
+        success "Removed the nexus container"
+    fi
+}
+
+function start {
+    h2 "Starting the nexus docker image..."
+
+    # Have we pulled the docker image yet ?
+    nexus_image_count=$(docker images | grep "nexus3" | wc -l | xargs )
+    if [[ "${nexus_image_count}" == "0" ]]; then
+        info "nexus 3 image not available locally yet. Pull it down"
+        docker pull sonatype/nexus3
+        rc=$?
+        if [[ "${rc}" != "0" ]]; then error "Failed to pull nexus3 image from docker hub! rc=${rc}" ; exit ; fi
+        success "Nexus3 image pulled from docker hub."
+    fi
+
+    # See if it is already running...
+    start_new_container="True"
+    nexus_container_count=$(docker container ls --all | grep "sonatype/nexus3" | wc -l | xargs )
+    if [[ "${nexus_container_count}" != "0" ]]; then
+        # There is a nexus container present... is it still running ?
+        stopped_container_count=$(docker ps --filter "status=exited" --all | grep "sonatype/nexus3" | wc -l | xargs )
+        if [[ "${stopped_container_count}" == "0" ]]; then
+            success "The nexus container is already running."
+            start_new_container="False"
+        else
+            # The nexus container exists, but stopped. Remove it.
+            container_details=$(docker ps --filter "status=exited" --all | grep "sonatype/nexus3")
+            container_id=$(echo ${container_details} | cut -f1 -d' ')
+            docker container rm ${container_id}
+            rc=$?
+            if [[ "${rc}" != "0" ]]; then error "Failed to remove the stopped nexus3 container! rc=${rc}" ; exit ; fi
+            success "Removed the stopped nexus container"
+            start_new_container="True"
+        fi
+    fi
+
+    if [[ "${start_new_container}" == "True" ]]; then
+        # There are no nexus containers running... so start one.
+        docker run -d -p 8081:8081 --platform linux/amd64 --name nexus sonatype/nexus3
+        rc=$?
+        if [[ "${rc}" != "0" ]]; then error "Failed to start nexus3 container! rc=${rc}" ; exit ; fi
+        success "Nexus3 container started. Find it on http port 8081. http://localhost:8081"
+    fi
+}
+
+POSITIONAL_ARGS=()
+
+command="help"
+while [[ $# -gt 0 ]]; do
+  arg=$1
+  shift # past argument
+  case $arg in
+    start)
+      command="start"
+      ;;
+    stop)
+      command="stop"
+      ;;
+    status)
+      command="status"
+      ;;
+    logs)
+      command="logs"
+      ;;
+    help)
+      command="help"
+      ;;
+    *)
+      error "Unexpected parameter ${arg}"
+      echo 
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+set -- "${POSITIONAL_ARGS[@]}" # restore positional parameters
+
+if [[ "${command}" == "help" ]]; then
+    usage
+    exit 0
+fi
+
+if [[ "${command}" == "start" ]]; then
+    start
+    rc=$?
+    exit ${rc}
+fi
+
+if [[ "${command}" == "stop" ]]; then
+    stop
+    rc=$?
+    exit ${rc}
+fi
+
+if [[ "${command}" == "status" ]]; then
+    status
+    rc=$?
+    exit ${rc}
+fi
+
+if [[ "${command}" == "logs" ]]; then
+    get_logs
+    rc=$?
+    exit ${rc}
+fi
