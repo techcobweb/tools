@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+
+# Where is this script executing from ?
+BASEDIR=$(dirname "$0");pushd $BASEDIR 2>&1 >> /dev/null ;BASEDIR=$(pwd);popd 2>&1 >> /dev/null
+# echo "Running from directory ${BASEDIR}"
+export ORIGINAL_DIR=$(pwd)
+# cd "${BASEDIR}"
+
+#
+# Set Colors
+#
+
+bold=$(tput bold)
+underline=$(tput sgr 0 1)
+reset=$(tput sgr0)
+
+red=$(tput setaf 1)
+green=$(tput setaf 76)
+white=$(tput setaf 7)
+tan=$(tput setaf 202)
+blue=$(tput setaf 25)
+
+#
+# Headers and Logging
+#
+
+underline() { printf "${underline}${bold}%s${reset}\n" "$@"
+}
+h1() { printf "\n${underline}${bold}${blue}%s${reset}\n" "$@"
+}
+h2() { printf "\n${underline}${bold}${white}%s${reset}\n" "$@"
+}
+debug() { printf "${white}%s${reset}\n" "$@"
+}
+info() { printf "${white}➜ %s${reset}\n" "$@"
+}
+success() { printf "${green}✔ %s${reset}\n" "$@"
+}
+error() { printf "${red}✖ %s${reset}\n" "$@"
+}
+warn() { printf "${tan}➜ %s${reset}\n" "$@"
+}
+bold() { printf "${bold}%s${reset}\n" "$@"
+}
+note() { printf "\n${underline}${bold}${blue}Note:${reset} ${blue}%s${reset}\n" "$@"
+}
+
+
+function usage {
+    cat << EOF
+galasa-in-docker [options]
+
+Options are:
+config
+start
+stop
+status
+help
+
+EOF
+
+}
+
+function config {
+    h2 "Configuring galasa"
+
+    # Get the ip address of this machine.
+    current_ip_address=$(ipconfig getifaddr en0)
+
+    # Find the latest version of galasa by looking at the public home page
+    # and ripping the version number from there.
+    rm -f temp.html
+    wget https://galasa.dev/releases -O temp.html --quiet 2>&1 > /dev/null
+    galasa_latest_version=$(cat temp.html | grep "Release Highlights" | head -1 | cut -f2 -d'>' | cut -f1 -d' ' | xargs)
+    rm -f temp.html
+
+    # Find the latest version of the simbank material by looking at the
+    # simplatform zip 
+    wget https://api.github.com/repos/galasa-dev/simplatform/tags -O temp.json --quiet 2>&1 > /dev/null
+    simplatform_latest_version=$(cat temp.json | grep "name" | head -1 | cut -f4 -d'"')
+    rm -f temp.json
+
+    cat << EOF > config.yaml
+hostname: ${current_ip_address}
+galasaRegistry: icr.io/galasadev
+version: ${galasa_latest_version}
+engineController:
+  controllerVersion: ${galasa_latest_version}
+  engineVersion: ${galasa_latest_version}
+simplatform:
+  version: ${simplatform_latest_version}
+EOF
+
+    success "config.yaml configured"
+}
+
+function status {
+    h2 "Querying the status of galasa..."
+    assert_config_yaml_configured
+    error "Not yet coded"
+}
+
+function stop {
+    h2 "Stopping galasa"
+    assert_config_yaml_configured
+    error "Not yet coded"
+}
+
+
+function assert_config_yaml_configured {
+    if [[ ! -e config.yaml ]]; then 
+        error "config.yaml doesn't exist. Use galasa config to create it." 
+        exit 1
+    fi
+}
+
+function start {
+    h2 "Starting galasa"
+    assert_config_yaml_configured
+    
+    docker run -it \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v ${ORIGINAL_DIR}/config.yaml:/config.yaml \
+    --platform linux/amd64 \
+    icr.io/galasadev/galasa-docker-operator-amd64:latest
+
+}
+
+POSITIONAL_ARGS=()
+
+command="help"
+while [[ $# -gt 0 ]]; do
+  arg=$1
+  shift # past argument
+  case $arg in
+    config)
+      command="config"
+      ;;
+    start)
+      command="start"
+      ;;
+    stop)
+      command="stop"
+      ;;
+    status)
+      command="status"
+      ;;
+    help)
+      command="help"
+      ;;
+    *)
+      error "Unexpected parameter ${arg}"
+      echo 
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+set -- "${POSITIONAL_ARGS[@]}" # restore positional parameters
+
+if [[ "${command}" == "help" ]]; then
+    usage
+    exit 0
+fi
+
+if [[ "${command}" == "start" ]]; then
+    start
+    rc=$?
+    exit ${rc}
+fi
+
+if [[ "${command}" == "stop" ]]; then
+    stop
+    rc=$?
+    exit ${rc}
+fi
+
+if [[ "${command}" == "status" ]]; then
+    status
+    rc=$?
+    exit ${rc}
+fi
+
+if [[ "${command}" == "config" ]]; then
+    config
+    rc=$?
+    exit ${rc}
+fi
