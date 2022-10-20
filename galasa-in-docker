@@ -84,6 +84,10 @@ function config {
     rm -f temp.json
     # simplatform_latest_version=0.15.0
 
+    info "Using ip address ${current_ip_address}"
+    info "Using galasa version ${galasa_latest_version}"
+    info "Using simplatform version ${simplatform_latest_version}"
+
     cat << EOF > config.yaml
 hostname: ${current_ip_address}
 galasaRegistry: icr.io/galasadev
