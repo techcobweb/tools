@@ -79,10 +79,10 @@ function config {
 
     # The follow script yields 0.17.0... but this doesn't appear to run well...
     # docker pull icr.io/galasadev/galasa-simplatform-amd64
-    wget https://api.github.com/repos/galasa-dev/simplatform/tags -O temp.json --quiet 2>&1 > /dev/null
-    simplatform_latest_version=$(cat temp.json | grep "name" | head -1 | cut -f4 -d'"')
-    rm -f temp.json
-    # simplatform_latest_version=0.15.0
+    # wget https://api.github.com/repos/galasa-dev/simplatform/tags -O temp.json --quiet 2>&1 > /dev/null
+    # simplatform_latest_version=$(cat temp.json | grep "name" | head -1 | cut -f4 -d'"')
+    # rm -f temp.json
+    simplatform_latest_version=0.15.0
 
     info "Using ip address ${current_ip_address}"
     info "Using galasa version ${galasa_latest_version}"
