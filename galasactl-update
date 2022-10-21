@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+
+import os
+import stat
+from urllib.request import urlopen, urlretrieve
+import json
+
+target_galasa_file = "/Users/mcobbett/tools/bin/galasactl"
+
+with urlopen("https://api.github.com/repos/galasa-dev/cli/releases") as releases_response:
+    details = json.loads(releases_response.read().decode("utf-8"))
+    # print(json.dumps(details, indent=4))
+    latest_release_name=details[0]['name']
+
+    assets_url=details[0]['assets_url']
+
+with urlopen(assets_url) as assets_list_response:
+    assets_list = json.loads(assets_list_response.read().decode("utf-8"))
+    # print(json.dumps(details, indent=4))
+
+    # Find the asset with a 'name' of 'galasactl-darwin-amd64'
+    for asset_details in assets_list:
+        if asset_details['name'] == 'galasactl-darwin-amd64':
+            # We have found the mac one we want to download.
+
+            download_url=asset_details["browser_download_url"]
+
+            urlretrieve(download_url, target_galasa_file)
+
+            st = os.stat(target_galasa_file)
+            os.chmod(target_galasa_file, st.st_mode | stat.S_IEXEC)
+
+            break
+
+print( f"galasactl has been updated to {latest_release_name} in {target_galasa_file}" )
