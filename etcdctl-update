@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+
+
+# Where is this script executing from ?
+BASEDIR=$(dirname "$0");pushd $BASEDIR 2>&1 >> /dev/null ;BASEDIR=$(pwd);popd 2>&1 >> /dev/null
+# echo "Running from directory ${BASEDIR}"
+export ORIGINAL_DIR=$(pwd)
+# cd "${BASEDIR}"
+
+#
+# Set Colors
+#
+
+bold=$(tput bold)
+underline=$(tput sgr 0 1)
+reset=$(tput sgr0)
+
+red=$(tput setaf 1)
+green=$(tput setaf 76)
+white=$(tput setaf 7)
+tan=$(tput setaf 202)
+blue=$(tput setaf 25)
+
+#
+# Headers and Logging
+#
+
+underline() { printf "${underline}${bold}%s${reset}\n" "$@"
+}
+h1() { printf "\n${underline}${bold}${blue}%s${reset}\n" "$@"
+}
+h2() { printf "\n${underline}${bold}${white}%s${reset}\n" "$@"
+}
+debug() { printf "${white}%s${reset}\n" "$@"
+}
+info() { printf "${white}➜ %s${reset}\n" "$@"
+}
+success() { printf "${green}✔ %s${reset}\n" "$@"
+}
+error() { printf "${red}✖ %s${reset}\n" "$@"
+}
+warn() { printf "${tan}➜ %s${reset}\n" "$@"
+}
+bold() { printf "${bold}%s${reset}\n" "$@"
+}
+note() { printf "\n${underline}${bold}${blue}Note:${reset} ${blue}%s${reset}\n" "$@"
+}
+
+h2 "Installing etcdctl tool"
+
+ETCD_VER=v3.5.5
+
+# choose either URL
+GOOGLE_URL=https://storage.googleapis.com/etcd
+GITHUB_URL=https://github.com/etcd-io/etcd/releases/download
+DOWNLOAD_URL=${GOOGLE_URL}
+
+rm -f /tmp/etcd-${ETCD_VER}-darwin-amd64.zip
+rm -rf /tmp/etcd-download-test && mkdir -p /tmp/etcd-download-test
+
+curl -L ${DOWNLOAD_URL}/${ETCD_VER}/etcd-${ETCD_VER}-darwin-amd64.zip -o /tmp/etcd-${ETCD_VER}-darwin-amd64.zip
+unzip /tmp/etcd-${ETCD_VER}-darwin-amd64.zip -d /tmp && rm -f /tmp/etcd-${ETCD_VER}-darwin-amd64.zip
+mv /tmp/etcd-${ETCD_VER}-darwin-amd64/* /tmp/etcd-download-test && rm -rf mv /tmp/etcd-${ETCD_VER}-darwin-amd64
+
+/tmp/etcd-download-test/etcd --version
+/tmp/etcd-download-test/etcdctl version
+
+cp /tmp/etcd-download-test/etcdctl ~/tools/bin
+chmod +x ~/tools/bin/etcdctl
+success "~/tools/bin/etcdctl installed and ready"
+
+etcdctl version

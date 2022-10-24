@@ -130,6 +130,15 @@ function assert_config_yaml_configured {
         error "config.yaml doesn't exist. Use galasa config to create it." 
         exit 1
     fi
+
+    # Get the ip address of this machine.
+    current_ip_address=$(ipconfig getifaddr en0)
+
+    configured_ip_address=$(cat config.yaml | grep "hostname" | cut -f2 -d':' | xargs)
+    if [[ "${configured_ip_address}" != "${current_ip_address}" ]]; then
+        error "Bad configuration: config.yaml hostname ip-address field should be ${current_ip_address} but was ${configured_ip_address}."
+        exit 1
+    fi
 }
 
 function start {
